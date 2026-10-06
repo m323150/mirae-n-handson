@@ -74,6 +74,21 @@ class ItemControllerTest {
     }
 
     @Test
+    @DisplayName("GET /api/items/search 원 쿼리 문자열이 있으면 PHP $_GET 방식으로 해석해 전달(같은 이름은 나중 값, q[] 는 첫 값)")
+    void searchItemsWithRawQueryUsesLegacyParsing() throws Exception {
+        when(itemSearchService.search(any())).thenReturn(new ItemSearchResponse(200, List.of(), 0, "검색 결과가 없습니다"));
+
+        mockMvc.perform(get("/api/items/search?unit=M5-1&unit=M6-1&q[]=a&q[]=b"))
+            .andExpect(status().isOk());
+
+        ArgumentCaptor<MultiValueMap<String, String>> params = ArgumentCaptor.captor();
+        verify(itemSearchService).search(params.capture());
+        assertThat(params.getValue().get("unit")).containsExactly("M6-1");
+        assertThat(params.getValue().get("q")).containsExactly("a");
+        assertThat(params.getValue().containsKey("q[]")).isFalse();
+    }
+
+    @Test
     @DisplayName("GET /api/items/{id} → 200, 문항 JSON")
     void getItemReturnsJson() throws Exception {
         when(itemService.getItem(3)).thenReturn(
