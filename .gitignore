@@ -21,3 +21,5 @@ __pycache__/
 .idea/
 *.iml
 .vscode/
+legacy/assignment-thymeleaf/bin/
+legacy/grade-mssql/bin/
