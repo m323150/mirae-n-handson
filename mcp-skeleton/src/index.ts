@@ -27,6 +27,48 @@ server.registerTool(
 // - 감쌀 API 는 ./itemApi.js 에 있다 (ESM 이라 확장자를 .js 로 적는다)
 // - import 문도 이 자리에 함께 붙여 넣어도 된다
 // ================================================================
+import * as z from 'zod/v4';
+import { searchItems } from './itemApi.js';
+
+// 문항 검색 도구: itemApi.searchItems 를 그대로 감싼다. 읽기 전용.
+server.registerTool(
+  'search_items',
+  {
+    description:
+      '문항 은행에서 수학 문항을 검색한다. 사용자가 특정 주제 · 키워드(예: "통분", "비율")나 태그(예: "문장제", "오답률높음"), ' +
+      '단원(코드 M5-1 … M6-2 또는 단원 이름), 난이도(하 · 중 · 상)로 문항을 찾거나 추천해 달라고 할 때 쓴다. ' +
+      '결과는 문항 id · 단원 코드 · 난이도 · 태그 · 본문(stem) 목록이다. 문항을 만들거나 고치는 용도로는 쓰지 않는다.',
+    inputSchema: z.object({
+      keyword: z
+        .string()
+        .describe('문항 본문(stem) 또는 태그에 포함될 검색어. 빈 문자열이면 키워드 조건 없이 검색한다.'),
+      unit: z
+        .string()
+        .optional()
+        .describe('단원 코드(예: M5-1) 또는 단원 이름 일부(예: 분수의 곱셈). 생략하면 모든 단원.'),
+      difficulty: z
+        .enum(['하', '중', '상'])
+        .optional()
+        .describe('난이도. 하 · 중 · 상 중 하나. 생략하면 모든 난이도.'),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(20)
+        .default(5)
+        .describe('돌려받을 최대 문항 수(1~20 정수). 기본 5.')
+    })
+  },
+  async ({ keyword, unit, difficulty, limit }) => {
+    const items = await searchItems({ keyword, unit, difficulty, limit });
+    console.error(`search_items: ${items.length}건`);
+    if (items.length === 0) {
+      const result = { message: '검색 결과 없음', conditions: { keyword, unit, difficulty, limit } };
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    }
+    return { content: [{ type: 'text', text: JSON.stringify(items) }] };
+  }
+);
 
 async function main() {
   const transport = new StdioServerTransport();
