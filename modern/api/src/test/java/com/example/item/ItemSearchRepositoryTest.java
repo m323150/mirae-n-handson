@@ -94,6 +94,66 @@ class ItemSearchRepositoryTest {
     }
 
     @Test
+    @DisplayName("키워드의 _ 는 한 글자 와일드카드로 쓴다(BR-07)")
+    void searchKeywordTreatsUnderscoreAsSingleCharWildcard() {
+        assertThat(search("q", "분_가").rows()).extracting(ItemSearchRow::title)
+            .containsExactly("분모가 같은 분수의 덧셈");
+    }
+
+    /**
+     * 키워드 \ 검증용 문항 3개를 더 넣는다. 모두 공개 · 난이도 1.
+     * 아래 [H2 기준] 테스트는 테스트 프로필(H2, MariaDB 모드)에서 \ 가 LIKE 이스케이프 문자로 쓰이지 않고 글자 그대로
+     * 비교되는 현재 동작을 고정한다. MariaDB 는 기본 LIKE 이스케이프 문자가 \ 라서 결과가 다를 수 있다 —
+     * 운영 DB 기준 동작은 characterization(새 API 대상) 으로 확인해야 한다.
+     */
+    private void seedBackslashItems() {
+        Unit unit = entityManager.persist(ItemFixtures.unit(9, "T-1", "이스케이프 확인", 6));
+        entityManager.persist(ItemFixtures.item(null, unit, "할인율 100% 문항", 1, ItemStatus.ACTIVE));
+        entityManager.persist(ItemFixtures.item(null, unit, "경로 C:\\temp 문항", 1, ItemStatus.ACTIVE));
+        entityManager.persist(ItemFixtures.item(null, unit, "백슬래시 끝\\", 1, ItemStatus.ACTIVE));
+        entityManager.flush();
+        entityManager.clear();
+    }
+
+    @Test
+    @DisplayName("[H2 기준] 키워드 \\% 는 이스케이프가 아니라 '글자 \\ + 와일드카드 %' — \\ 가 든 문항을 찾고 100% 문항은 못 찾는다")
+    void searchKeywordBackslashPercentIsLiteralBackslashOnH2() {
+        seedBackslashItems();
+
+        assertThat(search("q", "\\%").rows()).extracting(ItemSearchRow::title)
+            .containsExactlyInAnyOrder("경로 C:\\temp 문항", "백슬래시 끝\\");
+    }
+
+    @Test
+    @DisplayName("[H2 기준] 키워드 \\\\ (백슬래시 두 개)는 글자 그대로 \\\\ 를 찾으므로 \\ 하나만 든 문항은 0건")
+    void searchKeywordDoubleBackslashIsLiteralOnH2() {
+        seedBackslashItems();
+
+        ItemSearchResponse response = search("q", "\\\\");
+
+        assertThat(response.count()).isZero();
+        assertThat(response.message()).isEqualTo("검색 결과가 없습니다");
+    }
+
+    @Test
+    @DisplayName("[H2 기준] 키워드 \\ 하나는 글자 \\ 를 찾는다(뒤 % 를 이스케이프하지 않는다)")
+    void searchKeywordSingleBackslashIsLiteralOnH2() {
+        seedBackslashItems();
+
+        assertThat(search("q", "\\").rows()).extracting(ItemSearchRow::title)
+            .containsExactlyInAnyOrder("경로 C:\\temp 문항", "백슬래시 끝\\");
+    }
+
+    @Test
+    @DisplayName("[H2 기준] 키워드 C:\\temp 처럼 \\ 뒤에 일반 글자가 오는 경우")
+    void searchKeywordBackslashBeforeOrdinaryCharOnH2() {
+        seedBackslashItems();
+
+        assertThat(search("q", "C:\\temp").rows()).extracting(ItemSearchRow::title)
+            .containsExactly("경로 C:\\temp 문항");
+    }
+
+    @Test
     @DisplayName("태그의 % 는 글자 그대로 비교해 0건")
     void searchTagPercentIsLiteral() {
         ItemSearchResponse response = search("tag", "%");

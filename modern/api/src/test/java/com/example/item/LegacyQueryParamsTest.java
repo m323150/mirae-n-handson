@@ -90,6 +90,34 @@ class LegacyQueryParamsTest {
     }
 
     @Test
+    @DisplayName("max_input_nesting_level(64) 까지는 배열로 받고, 넘으면 그 이름을 앞의 값까지 통째로 지운다")
+    void nestingBeyondMaxLevelRemovesVariable() {
+        int max = LegacyQueryParams.MAX_INPUT_NESTING_LEVEL;
+
+        assertThat(LegacyQueryParams.parse("q" + "[a]".repeat(max) + "=x").getFirst("q")).isEqualTo("Array");
+        assertThat(LegacyQueryParams.parse("q[a]=x").getFirst("q")).isEqualTo("x");
+
+        MultiValueMap<String, String> params =
+            LegacyQueryParams.parse("q=keep&unit=M5-1&q" + "[a]".repeat(max + 1) + "=x");
+        assertThat(params.containsKey("q")).isFalse();
+        assertThat(params.getFirst("unit")).isEqualTo("M5-1");
+    }
+
+    @Test
+    @DisplayName("배열의 같은 키를 다시 주면 자리는 그대로 두고 값만 바꾼다")
+    void arrayElementOverwriteKeepsPosition() {
+        assertThat(LegacyQueryParams.parse("q[0]=a&q[]=b&q[0]=c").getFirst("q")).isEqualTo("c");
+    }
+
+    @Test
+    @DisplayName("빈 이름 · [ 로 시작하는 이름은 버린다")
+    void emptyBaseNameIsIgnored() {
+        MultiValueMap<String, String> params = LegacyQueryParams.parse("=1&[]=2&q=3");
+
+        assertThat(params.keySet()).containsExactly("q");
+    }
+
+    @Test
     @DisplayName("배열 첫 원소가 빈 값이면 빈 문자열, 키가 있는 배열 name[k] 도 첫 원소를 쓴다")
     void arrayWithEmptyOrKeyedElementUsesFirstElement() {
         assertThat(LegacyQueryParams.parse("tag[]=").get("tag")).isEqualTo(List.of(""));

@@ -110,6 +110,55 @@ class ItemSearchConditionTest {
     }
 
     @Test
+    @DisplayName("정렬: id 는 기본 오름차순, title 은 방향을 비우면 오름차순, created · level 은 asc 일 때만 오름차순")
+    void sortIdTitleCreatedLevelDirections() {
+        assertThat(ItemSearchCondition.from(params("sort", "id")).toSort())
+            .isEqualTo(Sort.by(Sort.Order.asc("id")));
+        assertThat(ItemSearchCondition.from(params("sort", "id", "dir", "DESC")).toSort())
+            .isEqualTo(Sort.by(Sort.Order.desc("id")));
+        assertThat(ItemSearchCondition.from(params("sort", "title")).toSort())
+            .isEqualTo(Sort.by(Sort.Order.asc("title"), Sort.Order.asc("id")));
+        assertThat(ItemSearchCondition.from(params("sort", "created", "dir", "asc")).toSort())
+            .isEqualTo(Sort.by(Sort.Order.asc("createdAt"), Sort.Order.asc("id")));
+        assertThat(ItemSearchCondition.from(params("sort", " level ", "dir", "Asc")).toSort())
+            .isEqualTo(Sort.by(Sort.Order.asc("level"), Sort.Order.asc("id")));
+    }
+
+    @Test
+    @DisplayName("난이도 · 단원은 PHP trim 후 해석하고, 단원 코드의 대소문자는 바꾸지 않는다(BR-09)")
+    void levelAndUnitAreTrimmedAndUnitCaseIsKept() {
+        ItemSearchCondition condition = ItemSearchCondition.from(params("level", " 3\t", "unit", " m5-1 "));
+
+        assertThat(condition.levelFilter().mode()).isEqualTo(ItemSearchCondition.LevelFilter.Mode.EQUAL);
+        assertThat(condition.levelFilter().level()).isEqualTo(OptionalInt.of(3));
+        assertThat(condition.unitCode()).isEqualTo("m5-1");
+        assertThat(ItemSearchCondition.from(params("level", " \n")).levelFilter().mode())
+            .isEqualTo(ItemSearchCondition.LevelFilter.Mode.BELOW_MAX);
+    }
+
+    @Test
+    @DisplayName("난이도가 int 범위를 넘는 음수면 0건 조건, PHP (int) 는 앞부분 숫자만 · 부호 지원")
+    void levelNegativeOverflowAndSignedPrefix() {
+        assertThat(ItemSearchCondition.parseLevel("-99999999999999999999").level()).isEmpty();
+        assertThat(ItemSearchCondition.parseLevel("2147483648").level()).isEmpty();
+        assertThat(ItemSearchCondition.phpIntCast("+4x")).isEqualTo(4);
+        assertThat(ItemSearchCondition.phpIntCast(".9")).isZero();
+        assertThat(ItemSearchCondition.phpIntCast("-2.7")).isEqualTo(-2);
+        assertThat(ItemSearchCondition.phpIntCast("1e400")).isZero();
+    }
+
+    @Test
+    @DisplayName("param: 값이 null 이면 빈 문자열, 일반 이름과 배열 이름이 같이 오면 일반 이름 값")
+    void paramNullValueAndPlainOverArray() {
+        MultiValueMap<String, String> withNull = new LinkedMultiValueMap<>();
+        withNull.add("q", null);
+
+        assertThat(ItemSearchCondition.param(withNull, "q", "x")).isEmpty();
+        assertThat(ItemSearchCondition.param(params("q[]", "a", "q", "b"), "q", "")).isEqualTo("b");
+        assertThat(ItemSearchCondition.param(params("qq", "a"), "q", "d")).isEqualTo("d");
+    }
+
+    @Test
     @DisplayName("모르는 정렬 기준은 기본 정렬(BR-18)")
     void unknownSortFallsBackToDefault() {
         ItemSearchCondition condition = ItemSearchCondition.from(params("sort", "price", "dir", "up"));

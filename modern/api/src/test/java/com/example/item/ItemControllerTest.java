@@ -89,6 +89,31 @@ class ItemControllerTest {
     }
 
     @Test
+    @DisplayName("GET /api/items/search 서비스에서 예상 못한 예외 → 500, 공통 오류 응답(내부 메시지 노출 없음)")
+    void searchItemsServiceFailureReturns500() throws Exception {
+        when(itemSearchService.search(any())).thenThrow(new RuntimeException("db down"));
+
+        mockMvc.perform(get("/api/items/search").param("q", "분수"))
+            .andExpect(status().isInternalServerError())
+            .andExpect(jsonPath("$.status").value(500))
+            .andExpect(jsonPath("$.error").value("Internal Server Error"))
+            .andExpect(jsonPath("$.message").value("서버 내부 오류"))
+            .andExpect(jsonPath("$.path").value("/api/items/search"));
+    }
+
+    @Test
+    @DisplayName("GET /api/items/search 서비스가 IllegalArgumentException 을 던지면 → 400, 공통 오류 응답")
+    void searchItemsIllegalArgumentReturns400() throws Exception {
+        when(itemSearchService.search(any())).thenThrow(new IllegalArgumentException("bad"));
+
+        mockMvc.perform(get("/api/items/search?page=1"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.status").value(400))
+            .andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다"))
+            .andExpect(jsonPath("$.path").value("/api/items/search"));
+    }
+
+    @Test
     @DisplayName("GET /api/items/{id} → 200, 문항 JSON")
     void getItemReturnsJson() throws Exception {
         when(itemService.getItem(3)).thenReturn(
