@@ -24,3 +24,4 @@ __pycache__/
 legacy/assignment-thymeleaf/bin/
 legacy/grade-mssql/bin/
 modern/api/bin/
+.claude/settings.local.json
