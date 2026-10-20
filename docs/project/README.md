@@ -1,0 +1,3 @@
+레거시 `search.php` 와 이관한 `GET /api/items/search` 의 응답을 동작 보존 테스트 18케이스(`characterization/tests/item-bank.test.js`)로 대조하고, 변경분을 `/verify`(reviewer · tester Sub-agent)와 PR 자동 리뷰(`.github/workflows/pr-review.yml`)로 승인 체크리스트 네 기준에 맞춰 판정하는 과정을 자동화한다.
+실행: `cd characterization && npm test`(레거시 8081 대조) 뒤 Claude Code 에서 `/verify <git 범위>`(예: `/verify day4-start..HEAD`) 로 머지 전 판정을 받는다.
+한계: 새 API 대상 테스트는 사람이 `./gradlew bootRun` 으로 서버를 띄워야 하고(tester Sub-agent 권한으로는 기동할 수 없다) 판정 기준이 `docs/approval-checklist.md`(워크플로)와 `templates/approval-checklist.md`(verify)로 나뉘어 있으므로, 현업에 옮길 때는 두 체크리스트를 하나로 합치고 `localhost` 포트와 Compose DB 를 팀 테스트 환경 주소로 바꿔야 한다.
