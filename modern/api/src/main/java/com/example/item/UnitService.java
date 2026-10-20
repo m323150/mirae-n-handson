@@ -13,11 +13,9 @@ public class UnitService {
     private static final Logger log = LoggerFactory.getLogger(UnitService.class);
 
     private final UnitRepository unitRepository;
-    private final ItemRepository itemRepository;
 
-    public UnitService(UnitRepository unitRepository, ItemRepository itemRepository) {
+    public UnitService(UnitRepository unitRepository) {
         this.unitRepository = unitRepository;
-        this.itemRepository = itemRepository;
     }
 
     /** 단원 목록 — 학년, 코드 순. */
@@ -27,18 +25,5 @@ public class UnitService {
             .toList();
         log.debug("listed {} units", units.size());
         return units;
-    }
-
-    /**
-     * 단원별 문항 수 통계 — 단원마다 공개({@link ItemStatus#ACTIVE}) 문항 수를 센다.
-     * 순서는 {@link #listUnits()} 와 같다(학년, 코드 순). 문항이 없는 단원은 0 으로 포함한다.
-     */
-    public List<UnitItemCountResponse> countActiveItemsByUnit() {
-        List<UnitItemCountResponse> counts = unitRepository.findAllByOrderByGradeAscCodeAsc().stream()
-            .map(unit -> UnitItemCountResponse.of(
-                unit, itemRepository.countByUnitIdAndStatus(unit.getId(), ItemStatus.ACTIVE)))
-            .toList();
-        log.debug("counted active items for {} units", counts.size());
-        return counts;
     }
 }

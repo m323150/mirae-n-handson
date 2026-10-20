@@ -39,44 +39,4 @@ class UnitControllerTest {
             .andExpect(jsonPath("$[0].code").value("M5-1"))
             .andExpect(jsonPath("$[1].grade").value(6));
     }
-
-    @Test
-    @DisplayName("GET /api/units/item-counts → 200, 서비스 순서대로 {code, name, grade, activeItemCount} 배열")
-    void getItemCountsReturnsArray() throws Exception {
-        when(unitService.countActiveItemsByUnit()).thenReturn(List.of(
-            new UnitItemCountResponse("M5-1", "분수의 덧셈과 뺄셈", 5, 3L),
-            new UnitItemCountResponse("M6-1", "분수의 나눗셈", 6, 0L)));
-
-        mockMvc.perform(get("/api/units/item-counts").accept(MediaType.APPLICATION_JSON))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.length()").value(2))
-            .andExpect(jsonPath("$[0].code").value("M5-1"))
-            .andExpect(jsonPath("$[0].name").value("분수의 덧셈과 뺄셈"))
-            .andExpect(jsonPath("$[0].grade").value(5))
-            .andExpect(jsonPath("$[0].activeItemCount").value(3))
-            .andExpect(jsonPath("$[0].length()").value(4))
-            .andExpect(jsonPath("$[1].code").value("M6-1"))
-            .andExpect(jsonPath("$[1].activeItemCount").value(0));
-    }
-
-    @Test
-    @DisplayName("GET /api/units/item-counts 단원이 없으면 → 200, 빈 배열")
-    void getItemCountsEmptyReturnsEmptyArray() throws Exception {
-        when(unitService.countActiveItemsByUnit()).thenReturn(List.of());
-
-        mockMvc.perform(get("/api/units/item-counts"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.length()").value(0));
-    }
-
-    @Test
-    @DisplayName("GET /api/units/item-counts 서비스 예외 → 500, 공통 오류 응답")
-    void getItemCountsServiceFailureReturns500() throws Exception {
-        when(unitService.countActiveItemsByUnit()).thenThrow(new RuntimeException("db down"));
-
-        mockMvc.perform(get("/api/units/item-counts"))
-            .andExpect(status().isInternalServerError())
-            .andExpect(jsonPath("$.status").value(500))
-            .andExpect(jsonPath("$.path").value("/api/units/item-counts"));
-    }
 }
