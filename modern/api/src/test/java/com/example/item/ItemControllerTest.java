@@ -1,5 +1,9 @@
 package com.example.item;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -9,12 +13,14 @@ import com.example.common.NotFoundException;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.util.MultiValueMap;
 
 /** 컨트롤러 슬라이스 — 서비스는 목, 예외 → HTTP 변환은 GlobalExceptionHandler 가 담당. */
 @WebMvcTest(ItemController.class)
@@ -26,6 +32,86 @@ class ItemControllerTest {
 
     @MockBean
     private ItemService itemService;
+
+    @MockBean
+    private ItemSearchService itemSearchService;
+
+    @Test
+    @DisplayName("GET /api/items/search → 200, {status, rows, count, message} 모양이고 행에는 5개 필드만")
+    void searchItemsReturnsNormalizedShape() throws Exception {
+        when(itemSearchService.search(any())).thenReturn(new ItemSearchResponse(
+            200, List.of(new ItemSearchRow(12, "대분수의 덧셈", "M5-1", 3, List.of("계산", "오답률높음"))), 1, null));
+
+        mockMvc.perform(get("/api/items/search").param("unit", "M5-1").param("level", "3"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value(200))
+            .andExpect(jsonPath("$.count").value(1))
+            .andExpect(jsonPath("$.message").value(nullValue()))
+            .andExpect(jsonPath("$.rows[0].id").value(12))
+            .andExpect(jsonPath("$.rows[0].unit").value("M5-1"))
+            .andExpect(jsonPath("$.rows[0].tags[1]").value("오답률높음"))
+            .andExpect(jsonPath("$.rows[0].length()").value(5))
+            .andExpect(jsonPath("$.rows[0].stem").doesNotExist())
+            .andExpect(jsonPath("$.rows[0].status").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("GET /api/items/search 숫자가 아닌 page · 없는 단원도 400/404 가 아니라 200, 파라미터는 그대로 전달")
+    void searchItemsWithOddParamsReturns200() throws Exception {
+        when(itemSearchService.search(any())).thenReturn(
+            new ItemSearchResponse(200, List.of(), 0, "검색 결과가 없습니다"));
+
+        mockMvc.perform(get("/api/items/search").param("unit", "Z99-99").param("page", "abc"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.count").value(0))
+            .andExpect(jsonPath("$.rows.length()").value(0))
+            .andExpect(jsonPath("$.message").value("검색 결과가 없습니다"));
+
+        ArgumentCaptor<MultiValueMap<String, String>> params = ArgumentCaptor.captor();
+        verify(itemSearchService).search(params.capture());
+        assertThat(params.getValue().getFirst("unit")).isEqualTo("Z99-99");
+        assertThat(params.getValue().getFirst("page")).isEqualTo("abc");
+    }
+
+    @Test
+    @DisplayName("GET /api/items/search 원 쿼리 문자열이 있으면 PHP $_GET 방식으로 해석해 전달(같은 이름은 나중 값, q[] 는 첫 값)")
+    void searchItemsWithRawQueryUsesLegacyParsing() throws Exception {
+        when(itemSearchService.search(any())).thenReturn(new ItemSearchResponse(200, List.of(), 0, "검색 결과가 없습니다"));
+
+        mockMvc.perform(get("/api/items/search?unit=M5-1&unit=M6-1&q[]=a&q[]=b"))
+            .andExpect(status().isOk());
+
+        ArgumentCaptor<MultiValueMap<String, String>> params = ArgumentCaptor.captor();
+        verify(itemSearchService).search(params.capture());
+        assertThat(params.getValue().get("unit")).containsExactly("M6-1");
+        assertThat(params.getValue().get("q")).containsExactly("a");
+        assertThat(params.getValue().containsKey("q[]")).isFalse();
+    }
+
+    @Test
+    @DisplayName("GET /api/items/search 서비스에서 예상 못한 예외 → 500, 공통 오류 응답(내부 메시지 노출 없음)")
+    void searchItemsServiceFailureReturns500() throws Exception {
+        when(itemSearchService.search(any())).thenThrow(new RuntimeException("db down"));
+
+        mockMvc.perform(get("/api/items/search").param("q", "분수"))
+            .andExpect(status().isInternalServerError())
+            .andExpect(jsonPath("$.status").value(500))
+            .andExpect(jsonPath("$.error").value("Internal Server Error"))
+            .andExpect(jsonPath("$.message").value("서버 내부 오류"))
+            .andExpect(jsonPath("$.path").value("/api/items/search"));
+    }
+
+    @Test
+    @DisplayName("GET /api/items/search 서비스가 IllegalArgumentException 을 던지면 → 400, 공통 오류 응답")
+    void searchItemsIllegalArgumentReturns400() throws Exception {
+        when(itemSearchService.search(any())).thenThrow(new IllegalArgumentException("bad"));
+
+        mockMvc.perform(get("/api/items/search?page=1"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.status").value(400))
+            .andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다"))
+            .andExpect(jsonPath("$.path").value("/api/items/search"));
+    }
 
     @Test
     @DisplayName("GET /api/items/{id} → 200, 문항 JSON")

@@ -27,6 +27,10 @@ spring:
 
 server:
   port: 8080
+  tomcat:
+    # 레거시(Apache + PHP)는 쿼리의 인코딩되지 않은 [ ] | { } 등을 받아 검색한다(search.php?q[]=… 등).
+    # Tomcat 기본값은 이 문자들을 400 으로 거부하므로, Tomcat 이 허용할 수 있는 문자는 모두 허용한다.
+    relaxed-query-chars: ['"', '<', '>', '[', '\', ']', '^', '`', '{', '|', '}']
 
 logging:
   level:
